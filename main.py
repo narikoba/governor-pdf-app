@@ -1,16 +1,15 @@
 # main.py
 import streamlit as st
-import openai
 import pdfplumber
 from io import BytesIO
 from datetime import datetime
 import re
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
+from openai import OpenAI
 
-# OpenAI APIキーを読み込み
-oai_api_key = st.secrets["openai_api_key"]
-openai.api_key = oai_api_key
+# OpenAI APIクライアント初期化（v1対応）
+client = OpenAI(api_key=st.secrets["openai_api_key"])
 
 st.title("知事記者会見録 自動整形アプリ（高機能版）")
 
@@ -45,7 +44,7 @@ if uploaded_file:
     """
 
     with st.spinner("ChatGPTで文章を整形中..."):
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": "あなたは日本語の文章校正の専門家です。"},
