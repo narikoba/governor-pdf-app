@@ -16,7 +16,6 @@ uploaded_file = st.file_uploader("PDFファイルをアップロードしてく�
 # ファイルがアップロードされたらすぐ処理を実行（ユーザー操作不要）
 if uploaded_file is not None:
     with st.spinner("ファイルを処理中です。しばらくお待ちください..."):
-        # ファイル名から日付抽出（カッコ内も含めてOKに）
         match = re.search(r"[\(\[]?(\d{4})(\d{2})(\d{2})[\)\]]?", uploaded_file.name)
         if match:
             year, month, day = match.groups()
@@ -28,16 +27,21 @@ if uploaded_file is not None:
 
         # PDFからテキストを抽出
         with pdfplumber.open(uploaded_file) as pdf:
-            text = "\n".join(page.extract_text() for page in pdf.pages[1:] if page.extract_text())
+            full_text = "\n".join(page.extract_text() for page in pdf.pages[1:] if page.extract_text())
 
-        # トークン数で制限（gpt-4上限を考慮して4000トークン以内に）
+        # トークン分割処理
         encoding = tiktoken.encoding_for_model("gpt-4")
-        tokens = encoding.encode(text)
+        tokens = encoding.encode(full_text)
         max_tokens = 4000
-        text = encoding.decode(tokens[:max_tokens])
+        chunks = []
+        while tokens:
+            chunk = tokens[:max_tokens]
+            chunks.append(encoding.decode(chunk))
+            tokens = tokens[max_tokens:]
 
-        # ChatGPTに渡すプロンプト（目指すPDFを忠実に再現する方針）
-        prompt = f"""
+        cleaned_parts = []
+        for i, chunk_text in enumerate(chunks):
+            prompt = f"""
 以下の東京都知事会見録のテキストを、別添の公式記録PDFと同等のフォーマットに整形してください。
 
 【目的】
@@ -56,22 +60,24 @@ if uploaded_file is not None:
 - 公的文書らしく、句点「。」で文章を整え、句読点の重複や口語は排除してください
 - 語尾の「～と思っています」「～と考えています」は整理してください
 - 会見録の文体にふさわしい端的な敬体または常体で統一してください
+- 「〈質疑応答〉」という表現は「質疑応答」に変え、前後に空行を挿入してください
 
 ---
-{text}
-        """
+{chunk_text}
+            """
 
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "あなたは東京都庁の行政文書編集官です。"},
-                {"role": "user", "content": prompt}
-            ],
-            temperature=0.3,
-        )
-        cleaned_text = response.choices[0].message.content
+            response = client.chat.completions.create(
+                model="gpt-4",
+                messages=[
+                    {"role": "system", "content": "あなたは東京都庁の行政文書編集官です。"},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+            )
+            cleaned_parts.append(response.choices[0].message.content)
 
-        # 冒頭に定型文を追加
+        cleaned_text = "\n\n".join(cleaned_parts)
+
         final_text = f"知事記者会見({japanese_date})\n\n\n＜知事冒頭発言＞\n\n{cleaned_text}"
 
         st.success("整形が完了しました！")
