@@ -5,6 +5,9 @@ from io import BytesIO
 from datetime import datetime
 import re
 from docx import Document
+from docx.shared import Pt
+from docx.oxml.ns import qn
+from docx.oxml import OxmlElement
 from openai import OpenAI
 import tiktoken
 import os
@@ -37,13 +40,24 @@ if uploaded_file:
     max_tokens = 4000
     text = encoding.decode(tokens[:max_tokens])
 
-    # ChatGPTに渡すプロンプト
+    # ChatGPTに渡すプロンプト（精度向上版）
     prompt = f"""
 以下の東京都知事会見録のテキストを、レイアウトと読みやすさを整えてください。
-- インデント、フォント、行間を整えてください。
-- ＜見出し＞形式でセクションを明確にしてください。
-- ダブルスペースや読点の不自然な箇所を修正してください。
-- 意味を変えずに、言い直しや重複した表現を省いてください。
+
+【目的】
+都知事会見の記録として、見出しを明確にし、各話題が読みやすいように整えてください。読み手が内容をスムーズに理解できるよう工夫してください。
+
+【編集方針】
+- 話題ごとに「◉〇〇〇（タイトル）」という見出しを付けてください
+- 話題の切れ目が分かるよう、段落を分けてください
+- 発言者（知事、記者など）は【知事】のように記載し、行頭で改行してください
+- 【知事】や【記者】は太字で表示する前提で構成してください
+- インデント、行間を自然に整えてください
+- 冗長な言い回しや繰り返し表現は削除・言い換えてください
+- 以下のような定型文は削除してください：
+    ・「詳細については〇〇へお問い合わせください」
+    ・「会見で使用したスライド資料はこちらからご覧いただけます」
+- 日本語として自然で、公式記録として適した文章にしてください
 
 ---
 {text}
@@ -53,7 +67,7 @@ if uploaded_file:
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
-                {"role": "system", "content": "あなたは日本語の文章校正の専門家です。"},
+                {"role": "system", "content": "あなたは日本語の行政文書編集の専門家です。"},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.4,
@@ -62,11 +76,24 @@ if uploaded_file:
 
     # Wordファイルとして保存（見た目を整える）
     doc = Document()
+    style = doc.styles["Normal"]
+    style.font.name = "MS Gothic"
+    style.element.rPr.rFonts.set(qn("w:eastAsia"), "MS Gothic")
+    style.font.size = Pt(11)
+
     for line in cleaned_text.split("\n"):
-        if line.strip().startswith("＜") and line.strip().endswith("＞"):
-            doc.add_heading(line.strip("＜＞"), level=2)
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith("◉"):
+            doc.add_heading(line.strip("◉ "), level=2)
+        elif line.startswith("【知事】") or line.startswith("【記者】") or line.startswith("【司会】"):
+            p = doc.add_paragraph()
+            run_bold = p.add_run(line[:4])  # 【知事】など
+            run_bold.bold = True
+            p.add_run(line[4:].lstrip())
         else:
-            doc.add_paragraph(line.strip())
+            doc.add_paragraph(line)
 
     buffer = BytesIO()
     doc.save(buffer)
