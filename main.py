@@ -7,6 +7,7 @@ import re
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
 from openai import OpenAI
+import tiktoken
 
 # OpenAI APIクライアント初期化（v1対応）
 client = OpenAI(api_key=st.secrets["openai_api_key"])
@@ -28,10 +29,13 @@ if uploaded_file:
 
     # PDFからテキストを抽出
     with pdfplumber.open(uploaded_file) as pdf:
-        # 最初の1ページ目は表紙としてスキップ
         text = "\n".join(page.extract_text() for page in pdf.pages[1:] if page.extract_text())
-        # gpt-4の上限に収まるよう調整（約12000文字程度）
-        text = text[:12000]
+
+    # トークン数で制限（gpt-4上限を考慮して4000トークン以内に）
+    encoding = tiktoken.encoding_for_model("gpt-4")
+    tokens = encoding.encode(text)
+    max_tokens = 4000
+    text = encoding.decode(tokens[:max_tokens])
 
     # ChatGPTに渡すプロンプト
     prompt = f"""
