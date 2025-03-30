@@ -17,8 +17,8 @@ st.title("知事記者会見録 自動整形アプリ（高機能版）")
 uploaded_file = st.file_uploader("PDFファイルをアップロードしてください", type="pdf")
 
 if uploaded_file:
-    # ファイル名から日付抽出
-    match = re.search(r"(\\d{4})(\\d{2})(\\d{2})", uploaded_file.name)
+    # ファイル名から日付抽出（カッコ内も含めてOKに）
+    match = re.search(r"[\(\[]?(\d{4})(\d{2})(\d{2})[\)\]]?", uploaded_file.name)
     if match:
         year, month, day = match.groups()
         formatted_date = f"{int(year)}.{int(month)}.{int(day)}"
