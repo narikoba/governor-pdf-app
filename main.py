@@ -11,7 +11,7 @@ from openai import OpenAI
 # OpenAI APIクライアント初期化（v1対応）
 client = OpenAI(api_key=st.secrets["openai_api_key"])
 
-st.title("知事記者会見録 自動整形アプリ（高機能版）")
+st.title("知事記者会見録 自動整形アプリ（高精度版・有料会員向け）")
 
 uploaded_file = st.file_uploader("PDFファイルをアップロードしてください", type="pdf")
 
@@ -30,6 +30,8 @@ if uploaded_file:
     with pdfplumber.open(uploaded_file) as pdf:
         # 最初の1ページ目は表紙としてスキップ
         text = "\n".join(page.extract_text() for page in pdf.pages[1:] if page.extract_text())
+        # gpt-4の上限に収まるよう調整（約12000文字程度）
+        text = text[:12000]
 
     # ChatGPTに渡すプロンプト
     prompt = f"""
@@ -43,7 +45,7 @@ if uploaded_file:
 {text}
     """
 
-    with st.spinner("ChatGPTで文章を整形中..."):
+    with st.spinner("ChatGPT（gpt-4）で文章を整形中..."):
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
