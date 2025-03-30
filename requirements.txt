@@ -1,5 +1,5 @@
 streamlit
 openai
 pdfplumber
-reportlab
 tiktoken
+python-docx 
