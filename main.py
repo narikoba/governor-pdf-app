@@ -13,29 +13,31 @@ st.title("知事記者会見録 自動整形アプリ（高精度版・テキス
 
 uploaded_file = st.file_uploader("PDFファイルをアップロードしてください", type="pdf")
 
-if uploaded_file:
-    # ファイル名から日付抽出（カッコ内も含めてOKに）
-    match = re.search(r"[\(\[]?(\d{4})(\d{2})(\d{2})[\)\]]?", uploaded_file.name)
-    if match:
-        year, month, day = match.groups()
-        formatted_date = f"{int(year)}.{int(month)}.{int(day)}"
-        japanese_date = f"令和{int(year)-2018}年{int(month)}月{int(day)}日"
-    else:
-        st.error("ファイル名に日付が含まれていません（例：20250328）。")
-        st.stop()
+# ファイルがアップロードされたらすぐ処理を実行（ユーザー操作不要）
+if uploaded_file is not None:
+    with st.spinner("ファイルを処理中です。しばらくお待ちください..."):
+        # ファイル名から日付抽出（カッコ内も含めてOKに）
+        match = re.search(r"[\(\[]?(\d{4})(\d{2})(\d{2})[\)\]]?", uploaded_file.name)
+        if match:
+            year, month, day = match.groups()
+            formatted_date = f"{int(year)}.{int(month)}.{int(day)}"
+            japanese_date = f"令和{int(year)-2018}年{int(month)}月{int(day)}日"
+        else:
+            st.error("ファイル名に日付が含まれていません（例：20250328）。")
+            st.stop()
 
-    # PDFからテキストを抽出
-    with pdfplumber.open(uploaded_file) as pdf:
-        text = "\n".join(page.extract_text() for page in pdf.pages[1:] if page.extract_text())
+        # PDFからテキストを抽出
+        with pdfplumber.open(uploaded_file) as pdf:
+            text = "\n".join(page.extract_text() for page in pdf.pages[1:] if page.extract_text())
 
-    # トークン数で制限（gpt-4上限を考慮して4000トークン以内に）
-    encoding = tiktoken.encoding_for_model("gpt-4")
-    tokens = encoding.encode(text)
-    max_tokens = 4000
-    text = encoding.decode(tokens[:max_tokens])
+        # トークン数で制限（gpt-4上限を考慮して4000トークン以内に）
+        encoding = tiktoken.encoding_for_model("gpt-4")
+        tokens = encoding.encode(text)
+        max_tokens = 4000
+        text = encoding.decode(tokens[:max_tokens])
 
-    # ChatGPTに渡すプロンプト（精度向上版）
-    prompt = f"""
+        # ChatGPTに渡すプロンプト（精度向上版）
+        prompt = f"""
 以下の東京都知事会見録のテキストを、レイアウトと読みやすさを整えてください。
 
 【目的】
@@ -55,9 +57,8 @@ if uploaded_file:
 
 ---
 {text}
-    """
+        """
 
-    with st.spinner("ChatGPT（gpt-4）で文章を整形中..."):
         response = client.chat.completions.create(
             model="gpt-4",
             messages=[
@@ -68,9 +69,9 @@ if uploaded_file:
         )
         cleaned_text = response.choices[0].message.content
 
-    # 冒頭に定型文を追加
-    final_text = f"知事記者会見({japanese_date})\n<知事冒頭発言>\n\n{cleaned_text}"
+        # 冒頭に定型文を追加
+        final_text = f"知事記者会見({japanese_date})\n<知事冒頭発言>\n\n{cleaned_text}"
 
-    st.success("整形が完了しました！")
-    st.download_button("テキストファイルをダウンロード", final_text, file_name=f"{formatted_date}知事記者会見.txt")
-    st.text_area("整形済みテキストプレビュー", final_text, height=600)
+        st.success("整形が完了しました！")
+        st.download_button("テキストファイルをダウンロード", final_text, file_name=f"{formatted_date}知事記者会見.txt")
+        st.text_area("整形済みテキストプレビュー", final_text, height=600)
