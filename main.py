@@ -72,7 +72,7 @@ if uploaded_file is not None:
         cleaned_text = response.choices[0].message.content
 
         # 冒頭に定型文を追加
-        final_text = f"知事記者会見({japanese_date})\n\n＜知事冒頭発言＞\n\n{cleaned_text}"
+        final_text = f"知事記者会見({japanese_date})\n\n\n＜知事冒頭発言＞\n\n{cleaned_text}"
 
         st.success("整形が完了しました！")
         st.download_button("テキストファイルをダウンロード", final_text, file_name=f"{formatted_date}知事記者会見.txt")
