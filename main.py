@@ -6,8 +6,14 @@ from datetime import datetime
 import re
 from reportlab.pdfgen import canvas
 from reportlab.lib.pagesizes import A4
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 from openai import OpenAI
 import tiktoken
+import os
+
+# IPAフォントを登録（ipaexg.ttf が同じディレクトリにある前提）
+pdfmetrics.registerFont(TTFont("IPAexGothic", "ipaexg.ttf"))
 
 # OpenAI APIクライアント初期化（v1対応）
 client = OpenAI(api_key=st.secrets["openai_api_key"])
@@ -60,18 +66,20 @@ if uploaded_file:
         )
         cleaned_text = response.choices[0].message.content
 
-    # PDFファイルとして保存
+    # PDFファイルとして保存（日本語フォントで）
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
+    c.setFont("IPAexGothic", 12)
     width, height = A4
 
     y_position = height - 50
     for line in cleaned_text.split("\n"):
         if y_position < 50:
             c.showPage()
+            c.setFont("IPAexGothic", 12)
             y_position = height - 50
         c.drawString(50, y_position, line.strip())
-        y_position -= 15
+        y_position -= 18
 
     c.save()
     buffer.seek(0)
