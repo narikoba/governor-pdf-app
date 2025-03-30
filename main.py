@@ -1,21 +1,15 @@
 # main.py
 import streamlit as st
 import pdfplumber
-from io import BytesIO
 from datetime import datetime
 import re
-from docx import Document
-from docx.shared import Pt
-from docx.oxml.ns import qn
-from docx.oxml import OxmlElement
 from openai import OpenAI
 import tiktoken
-import os
 
 # OpenAI APIクライアント初期化（v1対応）
 client = OpenAI(api_key=st.secrets["openai_api_key"])
 
-st.title("知事記者会見録 自動整形アプリ（高精度版・有料会員向け）")
+st.title("知事記者会見録 自動整形アプリ（高精度版・テキスト出力）")
 
 uploaded_file = st.file_uploader("PDFファイルをアップロードしてください", type="pdf")
 
@@ -25,7 +19,7 @@ if uploaded_file:
     if match:
         year, month, day = match.groups()
         formatted_date = f"{int(year)}.{int(month)}.{int(day)}"
-        output_filename = f"{formatted_date}知事記者会見.docx"
+        japanese_date = f"令和{int(year)-2018}年{int(month)}月{int(day)}日"
     else:
         st.error("ファイル名に日付が含まれていません（例：20250328）。")
         st.stop()
@@ -74,30 +68,9 @@ if uploaded_file:
         )
         cleaned_text = response.choices[0].message.content
 
-    # Wordファイルとして保存（見た目を整える）
-    doc = Document()
-    style = doc.styles["Normal"]
-    style.font.name = "MS Gothic"
-    style.element.rPr.rFonts.set(qn("w:eastAsia"), "MS Gothic")
-    style.font.size = Pt(11)
-
-    for line in cleaned_text.split("\n"):
-        line = line.strip()
-        if not line:
-            continue
-        if line.startswith("◉"):
-            doc.add_heading(line.strip("◉ "), level=2)
-        elif line.startswith("【知事】") or line.startswith("【記者】") or line.startswith("【司会】"):
-            p = doc.add_paragraph()
-            run_bold = p.add_run(line[:4])  # 【知事】など
-            run_bold.bold = True
-            p.add_run(line[4:].lstrip())
-        else:
-            doc.add_paragraph(line)
-
-    buffer = BytesIO()
-    doc.save(buffer)
-    buffer.seek(0)
+    # 冒頭に定型文を追加
+    final_text = f"知事記者会見({japanese_date})\n<知事冒頭発言>\n\n{cleaned_text}"
 
     st.success("整形が完了しました！")
-    st.download_button("Wordファイルをダウンロード", buffer, file_name=output_filename)
+    st.download_button("テキストファイルをダウンロード", final_text, file_name=f"{formatted_date}知事記者会見.txt")
+    st.text_area("整形済みテキストプレビュー", final_text, height=600)
